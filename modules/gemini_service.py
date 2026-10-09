@@ -1,26 +1,48 @@
 """
 Module: gemini_service.py
-Chức năng: Tích hợp Google Gemini API (gemini-2.5-flash) thông qua thư viện `google-genai`.
+Chức năng: Tích hợp Google Gemini API (gemini-3.8-flash) thông qua thư viện `google-genai`.
 Bao gồm:
 - Thiết kế Prompt Engineering tối ưu.
-- Bắt lỗi ngoại lệ mạng, hạn ngạch (Rate Limit), khóa API sai.
-- Chế độ tự động chuyển đổi sang Mock Data khi gặp lỗi hoặc khi bật Demo Mode.
+- Bắt lỗi ngoại lệ mạng, hạn ngạch (Rate Limit), máy chủ quá tải (503 UNAVAILABLE).
+- Cơ chế tự động thử lại đa mô hình (Model Cascade: 3.8-flash -> 3.8-flash-lite -> 1.5-flash).
+- Chế độ tự động chuyển đổi sang Mock Data an toàn khi gặp sự cố.
 """
 
 import os
 import json
 import re
+import time
 from typing import Dict, Any, List, Tuple
 from .mock_data import MOCK_SUMMARY, MOCK_QUIZ
 
-# Tên mô hình khuyến nghị mới nhất (tốc độ cao, miễn phí)
+# Mô hình mặc định và danh sách dự phòng khi máy chủ quá tải
 DEFAULT_MODEL = "gemini-3.8-flash"
+CANDIDATE_FALLBACK_MODELS = [
+    "gemini-3.8-flash",
+    "gemini-3.8-flash-lite",
+    "gemini-1.5-flash",
+    "gemini-1.5-pro",
+]
 
 def resolve_model_name(model_name: str) -> str:
     """Tự động chuyển đổi các mô hình cũ (như 2.5-flash đã hết hạn) sang phiên bản mới 3.8-flash."""
     if not model_name or "2.5-flash" in model_name:
         return "gemini-3.8-flash"
     return model_name
+
+
+def format_friendly_error(err_str: str) -> str:
+    """Chuyển đổi các mã lỗi kỹ thuật phức tạp thành thông báo tiếng Việt dễ hiểu cho sinh viên."""
+    if "503" in err_str or "UNAVAILABLE" in err_str:
+        return "Máy chủ Google Gemini đang tạm thời quá tải (Mã 503: High Demand) do lượng truy cập toàn cầu tăng cao. Hệ thống đã kích hoạt Mock Data an toàn để bài học không bị gián đoạn. Bạn có thể bấm thử lại sau 30-60 giây."
+    if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
+        return "Tài khoản vượt hạn ngạch yêu cầu miễn phí tạm thời (Mã 429: Rate Limit). Đã chuyển sang Mock Data an toàn."
+    if "404" in err_str or "NOT_FOUND" in err_str:
+        return "Mô hình yêu cầu không khả dụng trên tài khoản Google của bạn (Mã 404: Not Found). Đã chuyển sang Mock Data."
+    if "API_KEY_INVALID" in err_str or ("400" in err_str and "API key" in err_str):
+        return "API Key không hợp lệ. Vui lòng kiểm tra lại khóa API tại Google AI Studio."
+    return f"Lỗi gọi Gemini API ({err_str}). Đã tự động kích hoạt Mock Data an toàn."
+
 
 def get_gemini_client(api_key: str):
     """Khởi tạo client Google GenAI từ API Key."""
@@ -29,6 +51,60 @@ def get_gemini_client(api_key: str):
         return genai.Client(api_key=api_key)
     except Exception as e:
         raise RuntimeError(f"Không thể khởi tạo Gemini Client: {str(e)}")
+
+
+def _call_gemini_with_fallback(
+    api_key: str,
+    prompt: str,
+    system_instruction: str = None,
+    temperature: float = 0.3,
+    requested_model: str = DEFAULT_MODEL
+) -> Tuple[str, str, str, str]:
+    """
+    Gọi Gemini API với cơ chế tự động chuyển mô hình dự phòng nếu gặp lỗi 503 (quá tải) hoặc 429/404.
+    Trả về: (response_text, model_thực_tế_đã_dùng, thông_báo_chuyển_đổi, lỗi_nếu_thất_bại_toàn_bộ)
+    """
+    start_model = resolve_model_name(requested_model)
+    models_to_try = [start_model]
+    for m in CANDIDATE_FALLBACK_MODELS:
+        if m not in models_to_try:
+            models_to_try.append(m)
+
+    try:
+        client = get_gemini_client(api_key)
+    except Exception as e:
+        return "", "", "", str(e)
+
+    last_error = ""
+    for idx, model_name in enumerate(models_to_try):
+        try:
+            config = {"temperature": temperature}
+            if system_instruction:
+                config["system_instruction"] = system_instruction
+            
+            response = client.models.generate_content(
+                model=model_name,
+                contents=prompt,
+                config=config,
+            )
+            
+            if response and response.text:
+                notice = ""
+                if idx > 0:
+                    notice = f"⚡ Mô hình '{start_model}' bị quá tải, đã tự động chuyển sang '{model_name}' thành công!"
+                return response.text, model_name, notice, ""
+                
+        except Exception as ex:
+            last_error = str(ex)
+            # Nếu gặp 503 quá tải hoặc 429/404, đợi 0.6s và thử mô hình dự phòng tiếp theo
+            if any(err_code in last_error for err_code in ["503", "429", "404", "UNAVAILABLE"]):
+                time.sleep(0.6)
+                continue
+            else:
+                # Nếu lỗi sai API key hoặc cấu trúc thì không thử tiếp
+                break
+
+    return "", "", "", last_error
 
 
 def generate_summary(text: str, api_key: str = "", force_mock: bool = False, custom_model: str = DEFAULT_MODEL) -> Tuple[str, bool, str]:
@@ -66,44 +142,19 @@ CẤU TRÚC BẮT BUỘC:
 --- NỘI DUNG TÀI LIỆU KẾT THÚC ---
 """
     
-    actual_model = resolve_model_name(custom_model or DEFAULT_MODEL)
-    try:
-        client = get_gemini_client(api_key)
-        response = client.models.generate_content(
-            model=actual_model,
-            contents=prompt,
-            config={
-                "system_instruction": system_instruction,
-                "temperature": 0.3, # Nhiệt độ thấp để đảm bảo tính chính xác học thuật
-            }
-        )
-        
-        if response and response.text:
-            return response.text, False, ""
-        else:
-            return MOCK_SUMMARY, True, "API không trả về nội dung. Đã chuyển sang Mock Data."
-            
-    except Exception as ex:
-        err_msg = str(ex)
-        # Nếu model cũ bị 404, thử tự động chạy lại với gemini-3.8-flash
-        if "404" in err_msg and actual_model != "gemini-3.8-flash":
-            try:
-                client = get_gemini_client(api_key)
-                response = client.models.generate_content(
-                    model="gemini-3.8-flash",
-                    contents=prompt,
-                    config={
-                        "system_instruction": system_instruction,
-                        "temperature": 0.3,
-                    }
-                )
-                if response and response.text:
-                    return response.text, False, "Đã tự động chuyển đổi sang gemini-3.8-flash do mô hình cũ hết hạn."
-            except Exception as retry_ex:
-                err_msg = str(retry_ex)
-                
-        # Rơi về Mock Data khi gặp lỗi mạng, rate limit, quota
-        return MOCK_SUMMARY, True, f"Lỗi gọi Gemini API ({err_msg}). Đã tự động kích hoạt Mock Data an toàn."
+    text_res, used_model, notice, err = _call_gemini_with_fallback(
+        api_key=api_key,
+        prompt=prompt,
+        system_instruction=system_instruction,
+        temperature=0.3,
+        requested_model=custom_model
+    )
+    
+    if text_res:
+        return text_res, False, notice
+    else:
+        friendly_msg = format_friendly_error(err)
+        return MOCK_SUMMARY, True, friendly_msg
 
 
 def generate_quiz(text: str, num_questions: int = 4, api_key: str = "", force_mock: bool = False, custom_model: str = DEFAULT_MODEL) -> Tuple[List[Dict[str, Any]], bool, str]:
@@ -145,57 +196,28 @@ NỘI DUNG TÀI LIỆU CẦN TẠO QUIZ:
 {text}
 """
     
-    actual_model = resolve_model_name(custom_model or DEFAULT_MODEL)
-    try:
-        client = get_gemini_client(api_key)
-        response = client.models.generate_content(
-            model=actual_model,
-            contents=prompt,
-            config={
-                "temperature": 0.4,
-            }
-        )
-        
-        raw_output = response.text if response else ""
-        if not raw_output:
-            return MOCK_QUIZ, True, "API không trả về nội dung. Đã chuyển sang Mock Data."
-            
+    raw_res, used_model, notice, err = _call_gemini_with_fallback(
+        api_key=api_key,
+        prompt=prompt,
+        system_instruction=None,
+        temperature=0.4,
+        requested_model=custom_model
+    )
+    
+    if raw_res:
         # Làm sạch chuỗi JSON nếu Gemini bọc trong ```json ... ```
-        cleaned_json = raw_output.strip()
+        cleaned_json = raw_res.strip()
         if cleaned_json.startswith("```"):
             cleaned_json = re.sub(r"^```(?:json)?\s*", "", cleaned_json)
             cleaned_json = re.sub(r"\s*```$", "", cleaned_json)
         cleaned_json = cleaned_json.strip()
         
-        # Parse JSON
-        quiz_data = json.loads(cleaned_json)
-        if isinstance(quiz_data, list) and len(quiz_data) > 0:
-            return quiz_data, False, ""
-        else:
-            return MOCK_QUIZ, True, "Dữ liệu JSON từ API không đúng định dạng mảng. Chuyển sang Mock Data."
+        try:
+            quiz_data = json.loads(cleaned_json)
+            if isinstance(quiz_data, list) and len(quiz_data) > 0:
+                return quiz_data, False, notice
+        except Exception:
+            pass
             
-    except Exception as ex:
-        err_msg = str(ex)
-        # Nếu model cũ bị 404, thử tự động chạy lại với gemini-3.8-flash
-        if "404" in err_msg and actual_model != "gemini-3.8-flash":
-            try:
-                client = get_gemini_client(api_key)
-                response = client.models.generate_content(
-                    model="gemini-3.8-flash",
-                    contents=prompt,
-                    config={
-                        "temperature": 0.4,
-                    }
-                )
-                raw_output = response.text if response else ""
-                cleaned_json = raw_output.strip()
-                if cleaned_json.startswith("```"):
-                    cleaned_json = re.sub(r"^```(?:json)?\s*", "", cleaned_json)
-                    cleaned_json = re.sub(r"\s*```$", "", cleaned_json)
-                quiz_data = json.loads(cleaned_json.strip())
-                if isinstance(quiz_data, list) and len(quiz_data) > 0:
-                    return quiz_data, False, "Đã tự động chuyển đổi sang gemini-3.8-flash do mô hình cũ hết hạn."
-            except Exception as retry_ex:
-                err_msg = str(retry_ex)
-                
-        return MOCK_QUIZ, True, f"Lỗi tạo Quiz qua API ({err_msg}). Đã tự động kích hoạt Mock Data an toàn."
+    friendly_msg = format_friendly_error(err) if err else "Định dạng JSON từ AI bị lỗi cú pháp."
+    return MOCK_QUIZ, True, friendly_msg

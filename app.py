@@ -81,9 +81,9 @@ with st.sidebar:
     
     selected_model = st.selectbox(
         "Mô hình Gemini:",
-        ["gemini-3.8-flash", "gemini-2.5-flash", "gemini-1.5-flash", "gemini-1.5-pro"],
+        ["gemini-3.8-flash", "gemini-3.8-flash-lite", "gemini-1.5-flash", "gemini-1.5-pro"],
         index=0,
-        help="Khuyến nghị gemini-3.8-flash: phiên bản mới nhất, tốc độ cao và miễn phí."
+        help="Khuyến nghị gemini-3.8-flash hoặc 3.8-flash-lite: tốc độ cao, ổn định."
     )
     
     demo_mode = st.toggle(
