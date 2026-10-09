@@ -16,7 +16,7 @@ Trong bối cảnh học tập hiện đại, sinh viên đại học thường 
 1. **Tiền xử lý văn bản:** Tiếp nhận văn bản nhập trực tiếp hoặc tải tệp `.txt`, `.docx`, tự động chuẩn hóa, loại bỏ ký tự thừa và tính toán số từ/thời gian đọc.
 2. **Tóm tắt thông minh phân tầng:** Tận dụng Google Gemini API (mô hình `gemini-2.5-flash`) để bóc tách dàn ý chính cốt lõi kèm bảng tra cứu thuật ngữ chuyên ngành (Glossary).
 3. **Sinh Quiz trắc nghiệm tương tác:** Tự động tạo bộ 3–5 câu hỏi trắc nghiệm 4 lựa chọn (A, B, C, D) từ tài liệu, cho phép làm bài trực tiếp, chấm điểm và xem lời giải chi tiết.
-4. **Quản lý phiên & Xuất dữ liệu:** Lưu trạng thái học tập qua `st.session_state` và hỗ trợ xuất toàn bộ nội dung ra định dạng Markdown (`.md`) hoặc Text (`.txt`).
+4. **Quản lý phiên & Xuất dữ liệu đa định dạng:** Lưu trạng thái học tập qua `st.session_state` và hỗ trợ xuất toàn bộ nội dung ra định dạng Microsoft Word (`.docx`), Adobe PDF (`.pdf`), Markdown (`.md`) hoặc Text (`.txt`) với thiết kế chuẩn học thuật siêu đẹp.
 5. **Chế độ Ngoại tuyến An toàn (Offline Mock Data):** Phòng ngừa rủi ro mất mạng hoặc nghẽn quota khi thuyết trình bảo vệ trực tiếp trước hội đồng.
 
 ---
@@ -29,7 +29,7 @@ Trong bối cảnh học tập hiện đại, sinh viên đại học thường 
 |  - Tab 1: Nạp & Tiền xử lý văn bản (.txt, .docx, Direct text)         |
 |  - Tab 2: Tóm tắt thông minh theo cấu trúc phân tầng                  |
 |  - Tab 3: Làm bài Quiz trắc nghiệm & Chấm điểm tức thì                |
-|  - Tab 4: Tải xuống bản ghi chép học tập (.md, .txt)                  |
+|  - Tab 4: Tải xuống bản ghi chép học tập (.docx, .pdf, .md, .txt)     |
 +-----------------------------------------------------------------------+
                                    │
                                    ▼

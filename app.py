@@ -12,8 +12,13 @@ load_dotenv()
 
 from modules.text_processor import clean_text, extract_text_from_file, get_text_statistics
 from modules.gemini_service import generate_summary, generate_quiz
-from modules.export_service import generate_markdown_export, generate_text_export
 from modules.mock_data import MOCK_SUMMARY, MOCK_QUIZ
+from modules.export_service import (
+    generate_markdown_export,
+    generate_text_export,
+    generate_docx_export,
+    generate_pdf_export
+)
 
 # 1. Cấu hình trang Streamlit
 st.set_page_config(
@@ -381,7 +386,23 @@ with tab4:
     
     col_exp1, col_exp2 = st.columns([1, 1])
     
-    # Chuẩn bị nội dung xuất file
+    # Chuẩn bị nội dung xuất file đa định dạng
+    docx_bytes = generate_docx_export(
+        summary=st.session_state.summary,
+        quiz_data=st.session_state.quiz_data,
+        user_answers=st.session_state.user_answers,
+        score_info=st.session_state.score_info,
+        stats=st.session_state.stats
+    )
+    
+    pdf_bytes = generate_pdf_export(
+        summary=st.session_state.summary,
+        quiz_data=st.session_state.quiz_data,
+        user_answers=st.session_state.user_answers,
+        score_info=st.session_state.score_info,
+        stats=st.session_state.stats
+    )
+
     md_content = generate_markdown_export(
         summary=st.session_state.summary,
         quiz_data=st.session_state.quiz_data,
@@ -400,20 +421,41 @@ with tab4:
     
     with col_exp1:
         st.subheader("📥 Tải bản ghi chép cá nhân")
-        st.download_button(
-            label="📄 Tải về định dạng Markdown (.md)",
-            data=md_content,
-            file_name="Smart_Study_Copilot_Notes.md",
-            mime="text/markdown",
-            use_container_width=True
-        )
-        st.download_button(
-            label="📝 Tải về định dạng Plain Text (.txt)",
-            data=txt_content,
-            file_name="Smart_Study_Copilot_Notes.txt",
-            mime="text/plain",
-            use_container_width=True
-        )
+        st.caption("✨ Hỗ trợ Word và PDF được định dạng màu sắc học thuật chuyên nghiệp, hỗ trợ 100% tiếng Việt có dấu:")
+        
+        dl_c1, dl_c2 = st.columns(2)
+        with dl_c1:
+            st.download_button(
+                label="📑 Tải Word (.docx) - Siêu Đẹp",
+                data=docx_bytes,
+                file_name="Smart_Study_Copilot_Notes.docx",
+                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                type="primary",
+                use_container_width=True
+            )
+            st.download_button(
+                label="📄 Tải Markdown (.md)",
+                data=md_content,
+                file_name="Smart_Study_Copilot_Notes.md",
+                mime="text/markdown",
+                use_container_width=True
+            )
+        with dl_c2:
+            st.download_button(
+                label="📕 Tải PDF (.pdf) - Chuẩn In Ấn",
+                data=pdf_bytes,
+                file_name="Smart_Study_Copilot_Notes.pdf",
+                mime="application/pdf",
+                type="primary",
+                use_container_width=True
+            )
+            st.download_button(
+                label="📝 Tải Plain Text (.txt)",
+                data=txt_content,
+                file_name="Smart_Study_Copilot_Notes.txt",
+                mime="text/plain",
+                use_container_width=True
+            )
         
     with col_exp2:
         st.subheader("📊 Tóm tắt phiên hiện tại")
