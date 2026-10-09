@@ -13,8 +13,14 @@ import re
 from typing import Dict, Any, List, Tuple
 from .mock_data import MOCK_SUMMARY, MOCK_QUIZ
 
-# Tên mô hình khuyến nghị tối ưu tốc độ & chi phí miễn phí
-DEFAULT_MODEL = "gemini-2.5-flash"
+# Tên mô hình khuyến nghị mới nhất (tốc độ cao, miễn phí)
+DEFAULT_MODEL = "gemini-3.8-flash"
+
+def resolve_model_name(model_name: str) -> str:
+    """Tự động chuyển đổi các mô hình cũ (như 2.5-flash đã hết hạn) sang phiên bản mới 3.8-flash."""
+    if not model_name or "2.5-flash" in model_name:
+        return "gemini-3.8-flash"
+    return model_name
 
 def get_gemini_client(api_key: str):
     """Khởi tạo client Google GenAI từ API Key."""
@@ -60,10 +66,11 @@ CẤU TRÚC BẮT BUỘC:
 --- NỘI DUNG TÀI LIỆU KẾT THÚC ---
 """
     
+    actual_model = resolve_model_name(custom_model or DEFAULT_MODEL)
     try:
         client = get_gemini_client(api_key)
         response = client.models.generate_content(
-            model=custom_model or DEFAULT_MODEL,
+            model=actual_model,
             contents=prompt,
             config={
                 "system_instruction": system_instruction,
@@ -78,6 +85,23 @@ CẤU TRÚC BẮT BUỘC:
             
     except Exception as ex:
         err_msg = str(ex)
+        # Nếu model cũ bị 404, thử tự động chạy lại với gemini-3.8-flash
+        if "404" in err_msg and actual_model != "gemini-3.8-flash":
+            try:
+                client = get_gemini_client(api_key)
+                response = client.models.generate_content(
+                    model="gemini-3.8-flash",
+                    contents=prompt,
+                    config={
+                        "system_instruction": system_instruction,
+                        "temperature": 0.3,
+                    }
+                )
+                if response and response.text:
+                    return response.text, False, "Đã tự động chuyển đổi sang gemini-3.8-flash do mô hình cũ hết hạn."
+            except Exception as retry_ex:
+                err_msg = str(retry_ex)
+                
         # Rơi về Mock Data khi gặp lỗi mạng, rate limit, quota
         return MOCK_SUMMARY, True, f"Lỗi gọi Gemini API ({err_msg}). Đã tự động kích hoạt Mock Data an toàn."
 
@@ -121,10 +145,11 @@ NỘI DUNG TÀI LIỆU CẦN TẠO QUIZ:
 {text}
 """
     
+    actual_model = resolve_model_name(custom_model or DEFAULT_MODEL)
     try:
         client = get_gemini_client(api_key)
         response = client.models.generate_content(
-            model=custom_model or DEFAULT_MODEL,
+            model=actual_model,
             contents=prompt,
             config={
                 "temperature": 0.4,
@@ -151,4 +176,26 @@ NỘI DUNG TÀI LIỆU CẦN TẠO QUIZ:
             
     except Exception as ex:
         err_msg = str(ex)
+        # Nếu model cũ bị 404, thử tự động chạy lại với gemini-3.8-flash
+        if "404" in err_msg and actual_model != "gemini-3.8-flash":
+            try:
+                client = get_gemini_client(api_key)
+                response = client.models.generate_content(
+                    model="gemini-3.8-flash",
+                    contents=prompt,
+                    config={
+                        "temperature": 0.4,
+                    }
+                )
+                raw_output = response.text if response else ""
+                cleaned_json = raw_output.strip()
+                if cleaned_json.startswith("```"):
+                    cleaned_json = re.sub(r"^```(?:json)?\s*", "", cleaned_json)
+                    cleaned_json = re.sub(r"\s*```$", "", cleaned_json)
+                quiz_data = json.loads(cleaned_json.strip())
+                if isinstance(quiz_data, list) and len(quiz_data) > 0:
+                    return quiz_data, False, "Đã tự động chuyển đổi sang gemini-3.8-flash do mô hình cũ hết hạn."
+            except Exception as retry_ex:
+                err_msg = str(retry_ex)
+                
         return MOCK_QUIZ, True, f"Lỗi tạo Quiz qua API ({err_msg}). Đã tự động kích hoạt Mock Data an toàn."

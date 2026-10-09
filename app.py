@@ -59,7 +59,7 @@ def load_sample_lesson():
 with st.sidebar:
     st.image("https://img.icons8.com/clouds/200/graduation-cap.png", width=90)
     st.title("Smart Study Copilot")
-    st.caption("🚀 Trợ lý học tập thông minh với Gemini 2.5 Flash")
+    st.caption("🚀 Trợ lý học tập thông minh với Gemini 3.8 Flash")
     
     st.divider()
     st.subheader("⚙️ Cấu hình AI & API")
@@ -81,9 +81,9 @@ with st.sidebar:
     
     selected_model = st.selectbox(
         "Mô hình Gemini:",
-        ["gemini-2.5-flash", "gemini-1.5-flash", "gemini-1.5-pro"],
+        ["gemini-3.8-flash", "gemini-2.5-flash", "gemini-1.5-flash", "gemini-1.5-pro"],
         index=0,
-        help="Khuyến nghị gemini-2.5-flash: tốc độ xử lý nhanh và độ trễ thấp."
+        help="Khuyến nghị gemini-3.8-flash: phiên bản mới nhất, tốc độ cao và miễn phí."
     )
     
     demo_mode = st.toggle(
