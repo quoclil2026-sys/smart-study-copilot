@@ -1,0 +1,26 @@
+BÀI HỌC: TỔNG QUAN VỀ TIẾN TRÌNH VÀ TIỂU TRÌNH TRONG HỆ ĐIỀU HÀNH
+
+1. Khái niệm Tiến trình (Process):
+Tiến trình là một chương trình đang được thực thi trong bộ nhớ (RAM). Nó bao gồm không chỉ mã lệnh thực thi (text section) mà còn bao gồm hoạt động hiện thời được đại diện bởi con trỏ lệnh (program counter), các thanh ghi bộ vi xử lý, ngăn xếp (stack) chứa dữ liệu tạm thời như tham số hàm, địa chỉ trả về, biến cục bộ, và vùng nhớ heap được cấp phát động trong thời gian chạy. 
+Mỗi tiến trình được hệ điều hành cấp phát một không gian địa chỉ ảo độc lập để đảm bảo tính an toàn: nếu một tiến trình gặp sự cố (crash), nó sẽ không trực tiếp làm sập các tiến trình khác hoặc toàn bộ hệ thống.
+
+2. Cấu trúc Khối điều khiển tiến trình (PCB - Process Control Block):
+Hệ điều hành quản lý mỗi tiến trình thông qua cấu trúc dữ liệu PCB. PCB lưu trữ các thông tin quan trọng:
+- Process ID (PID): Định danh duy nhất của tiến trình.
+- Trạng thái tiến trình (Process State): New (mới tạo), Ready (sẵn sàng), Running (đang chạy), Waiting/Blocked (chờ I/O hoặc sự kiện), Terminated (kết thúc).
+- Program Counter: Địa chỉ lệnh kế tiếp cần thực thi.
+- CPU Registers: Nội dung các thanh ghi khi có chuyển đổi ngữ cảnh (Context Switch).
+- Thông tin lập lịch CPU: Độ ưu tiên, con trỏ hàng đợi.
+- Thông tin quản lý bộ nhớ: Bảng phân trang (page table) hoặc thanh ghi cơ sở.
+- Thông tin trạng thái I/O: Danh sách các tệp đang mở, thiết bị gán cho tiến trình.
+
+3. Tiểu trình (Thread) và Đa luồng (Multithreading):
+Tiểu trình (hay luồng) là đơn vị cơ bản nhỏ nhất của việc sử dụng CPU. Một tiến trình có thể chứa nhiều tiểu trình cùng chạy đồng thời.
+Điểm khác biệt cốt lõi giữa Tiến trình và Tiểu trình:
+- Chia sẻ bộ nhớ: Các luồng trong cùng một tiến trình chia sẻ chung không gian địa chỉ, vùng nhớ dữ liệu (code, data, heap) và các tài nguyên hệ thống (như tệp mở), nhưng mỗi luồng có ngăn xếp (stack) và thanh ghi riêng.
+- Chi phí chuyển đổi ngữ cảnh: Chuyển đổi giữa các luồng rẻ hơn rất nhiều (lightweight) so với chuyển đổi giữa các tiến trình độc lập vì không phải tráo đổi bảng trang bộ nhớ ảo.
+- Khả năng đồng thời và đáp ứng: Với CPU đa nhân, các luồng có thể chạy song song thực sự (parallelism), nâng cao tốc độ phản hồi của ứng dụng (ví dụ: giao diện người dùng không bị đơ khi đang tải file ở background).
+
+4. Tranh chấp tài nguyên (Race Condition) và Đồng bộ hóa (Synchronization):
+Do chia sẻ chung vùng nhớ, khi hai hay nhiều luồng cùng truy cập và chỉnh sửa một biến hoặc cấu trúc dữ liệu mà không có cơ chế điều phối, hiện tượng Race Condition sẽ xảy ra, dẫn đến kết quả sai lệch khó đoán.
+Để giải quyết vấn đề này, các cơ chế đồng bộ hóa như Khóa độc quyền (Mutex), Đèn báo (Semaphore), hoặc Khối găng (Critical Section) được áp dụng nhằm đảm bảo tính toàn vẹn dữ liệu.
