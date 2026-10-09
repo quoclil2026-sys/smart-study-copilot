@@ -31,7 +31,8 @@ venv/
 env/
 ENV/
 
-# Streamlit Local Runtime
+# IDE & Agent Cache
+.agents/
 .streamlit/
 
 # OS Specific
