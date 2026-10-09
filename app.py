@@ -240,16 +240,28 @@ with tab3:
     if not st.session_state.cleaned_text:
         st.warning("⚠️ Vui lòng nạp nội dung bài học ở **Tab 1** trước.")
     else:
-        q_col1, q_col2, q_col3 = st.columns([1, 1, 2])
+        has_summary = bool(st.session_state.summary)
+        q_col1, q_col2, q_col3 = st.columns([1, 1, 1])
         with q_col1:
             num_q = st.slider("Số lượng câu hỏi:", min_value=3, max_value=5, value=4)
         with q_col2:
+            quiz_source_options = ["Bản tóm tắt (Nhanh, nhẹ, ít quá tải)", "Văn bản gốc đầy đủ"] if has_summary else ["Văn bản gốc đầy đủ"]
+            selected_source = st.selectbox(
+                "Nguồn dữ liệu tạo Quiz:",
+                quiz_source_options,
+                index=0,
+                help="Tạo từ bản tóm tắt giúp giảm 80% dung lượng gửi lên Google, tránh lỗi quá tải 503."
+            )
+        with q_col3:
+            st.write("")
             btn_gen_quiz = st.button("🎲 Sinh Bộ Trắc Nghiệm Mới", type="primary", use_container_width=True)
             
         if btn_gen_quiz:
-            with st.spinner("AI đang biên soạn câu hỏi trắc nghiệm khách quan..."):
+            # Chọn nguồn văn bản tối ưu: Tóm tắt (nếu chọn) hoặc Văn bản gốc
+            input_content = st.session_state.summary if ("Bản tóm tắt" in selected_source and has_summary) else st.session_state.cleaned_text
+            with st.spinner("AI đang biên soạn câu hỏi trắc nghiệm (vui lòng đợi 3-5 giây)..."):
                 quiz_res, is_mock, notice = generate_quiz(
-                    text=st.session_state.cleaned_text,
+                    text=input_content,
                     num_questions=num_q,
                     api_key=api_key_input,
                     force_mock=demo_mode,

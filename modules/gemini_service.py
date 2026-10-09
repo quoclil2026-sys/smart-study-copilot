@@ -96,9 +96,9 @@ def _call_gemini_with_fallback(
                 
         except Exception as ex:
             last_error = str(ex)
-            # Nếu gặp 503 quá tải hoặc 429/404, đợi 0.6s và thử mô hình dự phòng tiếp theo
+            # Nếu gặp 503 quá tải hoặc 429/404, đợi 1.5s để Google phục hồi và thử mô hình dự phòng tiếp theo
             if any(err_code in last_error for err_code in ["503", "429", "404", "UNAVAILABLE"]):
-                time.sleep(0.6)
+                time.sleep(1.5)
                 continue
             else:
                 # Nếu lỗi sai API key hoặc cấu trúc thì không thử tiếp
